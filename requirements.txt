@@ -3,6 +3,7 @@ pip>=22.0.3
 setuptools>=60.9.3
 numpy
 opencv-python
+opencv-contrib-python
 numexpr
 h5
 onnxruntime-gpu
