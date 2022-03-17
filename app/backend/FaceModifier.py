@@ -1,13 +1,11 @@
 import time
 import cv2
-import onnxruntime as ort
 import numpy as np
+from modelhub.pytorch.psp import PspEditor
 from xlib import os as lib_os
 from xlib.mp import csw as lib_csw
 from xlib.python import all_is_not_None
-import sys
-sys.path.append("psp")
-import editor
+
 
 from .BackendBase import (BackendConnection, BackendDB, BackendHost,
                           BackendSignal, BackendWeakHeap, BackendWorker,
@@ -34,28 +32,18 @@ class FaceModifierWorker(BackendWorker):
         self.bc_in = bc_in
         self.bc_out = bc_out
         self.pending_bcd = None
-        checkpoint_path = "psp_ffhq_encode.pt"
-
-        encoder, decoder, latent_avg = editor.load_model(checkpoint_path)
-
-        manipulator = editor.manipulate_model(decoder)
-        manipulator.edits = {editor.idx_dict[v[0]]: {v[1]: 0} for k, v in editor.edits.items()}
-        self.model = {
-            "encoder": encoder,
-            "decoder": decoder,
-            "latent_avg": latent_avg,
-            "manipulator": manipulator,
-        }
+        
+        self.model = PspEditor()
 
         
         lib_os.set_timer_resolution(1)
 
         state, cs = self.get_state(), self.get_control_sheet()
 
-        cs.beard.call_on_number(self.on_cs_beard)
-        cs.beard.enable()
-        cs.beard.set_config(lib_csw.Number.Config(min=-30, max=30, step=1, allow_instant_update=True))
-        cs.beard.set_number(state.beard if state.beard is not None else 0)
+        cs.goatee.call_on_number(self.on_cs_beard)
+        cs.goatee.enable()
+        cs.goatee.set_config(lib_csw.Number.Config(min=-30, max=30, step=1, allow_instant_update=True))
+        cs.goatee.set_number(state.goatee if state.goatee is not None else 0)
 
         cs.smile.call_on_number(self.on_cs_smile)
         cs.smile.enable()
@@ -64,8 +52,8 @@ class FaceModifierWorker(BackendWorker):
 
     def on_cs_beard(self, val):
         state, cs = self.get_state(), self.get_control_sheet()
-        state.beard = val
-        cs.beard.set_number(val)
+        state.goatee = val
+        cs.goatee.set_number(val)
         self.save_state()
         self.reemit_frame_signal.send()
 
@@ -91,20 +79,13 @@ class FaceModifierWorker(BackendWorker):
                     if all_is_not_None(view_image):
                         frame_image = cv2.resize(view_image, (256, 256))
 
-                        mods = {
-                            "goatee": state.beard if state.beard else 0,
+                        edits = {
+                            "goatee": state.goatee if state.goatee else 0,
                             "smile": state.smile if state.smile else 0,
                             }
-                        manipulator = self.model["manipulator"]
-                        for k, v in editor.edits.items():
-                            layer_index, channel_index, sense = v
-                            conv_name = editor.idx_dict[layer_index]
-                            manipulator.edits[conv_name][channel_index] = mods.get(k, 0)*sense
-
-                        inp = 2*frame_image[...,::-1].astype(np.float32).transpose(2,0,1)/255 - 1
-                        output = editor.run(self.model["encoder"], self.model["decoder"], self.model["latent_avg"], inp, pil=False)
+                        output = self.model.run(frame_image, edits)
                         bcd.set_merged_image_name("modified_image")
-                        bcd.set_image("modified_image", np.ascontiguousarray(output[...,::-1]).astype(np.uint8))
+                        bcd.set_image("modified_image", output)
 
 
                 self.stop_profile_timing()
@@ -127,7 +108,7 @@ class Sheet:
             self.head_mode = lib_csw.Flag.Client()
             self.x_offset = lib_csw.Number.Client()
             self.y_offset = lib_csw.Number.Client()
-            self.beard = lib_csw.Number.Client()
+            self.goatee = lib_csw.Number.Client()
             self.smile = lib_csw.Number.Client()
 
     class Worker(lib_csw.Sheet.Worker):
@@ -139,7 +120,7 @@ class Sheet:
             self.head_mode = lib_csw.Flag.Host()
             self.x_offset = lib_csw.Number.Host()
             self.y_offset = lib_csw.Number.Host()
-            self.beard = lib_csw.Number.Host()
+            self.goatee = lib_csw.Number.Host()
             self.smile = lib_csw.Number.Host()
 
 class WorkerState(BackendWorkerState):
@@ -149,5 +130,5 @@ class WorkerState(BackendWorkerState):
     head_mode : bool = None
     x_offset : float = None
     y_offset : float = None
-    beard : float = None
+    goatee : float = None
     smile : float = None
