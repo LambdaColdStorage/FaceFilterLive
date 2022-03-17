@@ -67,7 +67,7 @@ class FaceMarkerWorker(BackendWorker):
             cs.device.enable()
             if marker_type == MarkerType.FAN2D:
                 cs.device.set_choices(onnx_models.FaceMesh.get_available_devices(), none_choice_name='@misc.menu_select')
-                cs.device.select(state.fan2d.device)
+                cs.device.select(state.fan2d_state.device)
             elif marker_type == MarkerType.GOOGLE_FACEMESH:
                 cs.device.set_choices(onnx_models.FaceMesh.get_available_devices(), none_choice_name='@misc.menu_select')
                 cs.device.select(state.google_facemesh_state.device)
@@ -81,12 +81,12 @@ class FaceMarkerWorker(BackendWorker):
         marker_type = state.marker_type
 
         if device is not None and \
-            ( (marker_type == MarkerType.FAN2D and state.fan2d.device == device) or \
+            ( (marker_type == MarkerType.FAN2D and state.fan2d_state.device == device) or \
               (marker_type == MarkerType.GOOGLE_FACEMESH and state.google_facemesh_state.device == device)):
             marker_state = state.get_marker_state()
 
             if state.marker_type == MarkerType.FAN2D:
-                self.opencv_lbf = onnx_models.Fan2d(state.fan2d.device)
+                self.fan2d = onnx_models.Fan2d(state.fan2d_state.device)
             elif state.marker_type == MarkerType.GOOGLE_FACEMESH:
                 self.google_facemesh = onnx_models.FaceMesh(state.google_facemesh_state.device)
 
@@ -107,7 +107,7 @@ class FaceMarkerWorker(BackendWorker):
 
         else:
             if marker_type == MarkerType.FAN2D:
-                state.fan2d.device = device
+                state.fan2d_state.device = device
             elif marker_type == MarkerType.GOOGLE_FACEMESH:
                 state.google_facemesh_state.device = device
             self.save_state()
@@ -183,7 +183,8 @@ class FaceMarkerWorker(BackendWorker):
 
                                 if is_fan2d:
                                     lmrks /= (W,H)
-                                elif is_google_facemesh:
+                                    
+                                if is_google_facemesh:
                                     lmrks = lmrks[...,0:2] / (W,H)
 
                                 face_ulmrks = FLandmarks2D.create (ELandmarks2D.L68 if is_fan2d else \
@@ -215,7 +216,7 @@ class WorkerState(BackendWorkerState):
     def __init__(self):
         self.marker_type : MarkerType = None
         self.marker_state = {}
-        self.opencv_lbf_state = Fan2dState()
+        self.fan2d_state = Fan2dState()
         self.google_facemesh_state = GoogleFaceMeshState()
 
     def get_marker_state(self) -> MarkerState:
