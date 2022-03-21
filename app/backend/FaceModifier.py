@@ -1,6 +1,5 @@
 import time
 import cv2
-import numpy as np
 from modelhub.pytorch.psp import PspEditor
 from xlib import os as lib_os
 from xlib.mp import csw as lib_csw
@@ -32,7 +31,6 @@ class FaceModifierWorker(BackendWorker):
         self.bc_in = bc_in
         self.bc_out = bc_out
         self.pending_bcd = None
-        
         self.model = PspEditor()
 
         
@@ -50,6 +48,12 @@ class FaceModifierWorker(BackendWorker):
         cs.smile.set_config(lib_csw.Number.Config(min=-30, max=30, step=1, allow_instant_update=True))
         cs.smile.set_number(state.smile if state.smile is not None else 0)
 
+        cs.age.call_on_number(self.on_cs_age)
+        cs.age.enable()
+        cs.age.set_config(lib_csw.Number.Config(min=-5, max=5, step=0.2, allow_instant_update=True))
+        cs.age.set_number(state.age if state.age is not None else 0)
+
+
     def on_cs_beard(self, val):
         state, cs = self.get_state(), self.get_control_sheet()
         state.goatee = val
@@ -63,6 +67,14 @@ class FaceModifierWorker(BackendWorker):
         cs.smile.set_number(val)
         self.save_state()
         self.reemit_frame_signal.send()
+
+    def on_cs_age(self, val):
+        state, cs = self.get_state(), self.get_control_sheet()
+        state.age = val
+        cs.age.set_number(val)
+        self.save_state()
+        self.reemit_frame_signal.send()
+
 
     def on_tick(self):
         state, cs = self.get_state(), self.get_control_sheet()
@@ -82,6 +94,7 @@ class FaceModifierWorker(BackendWorker):
                         edits = {
                             "goatee": state.goatee if state.goatee else 0,
                             "smile": state.smile if state.smile else 0,
+                            "age": state.age if state.age else 0,
                             }
                         output = self.model.run(frame_image, edits)
                         bcd.set_merged_image_name("modified_image")
@@ -102,33 +115,18 @@ class Sheet:
     class Host(lib_csw.Sheet.Host):
         def __init__(self):
             super().__init__()
-            self.face_coverage = lib_csw.Number.Client()
-            self.resolution = lib_csw.Number.Client()
-            self.exclude_moving_parts = lib_csw.Flag.Client()
-            self.head_mode = lib_csw.Flag.Client()
-            self.x_offset = lib_csw.Number.Client()
-            self.y_offset = lib_csw.Number.Client()
             self.goatee = lib_csw.Number.Client()
             self.smile = lib_csw.Number.Client()
+            self.age = lib_csw.Number.Client()
 
     class Worker(lib_csw.Sheet.Worker):
         def __init__(self):
             super().__init__()
-            self.face_coverage = lib_csw.Number.Host()
-            self.resolution = lib_csw.Number.Host()
-            self.exclude_moving_parts = lib_csw.Flag.Host()
-            self.head_mode = lib_csw.Flag.Host()
-            self.x_offset = lib_csw.Number.Host()
-            self.y_offset = lib_csw.Number.Host()
             self.goatee = lib_csw.Number.Host()
             self.smile = lib_csw.Number.Host()
+            self.age = lib_csw.Number.Host()
 
 class WorkerState(BackendWorkerState):
-    face_coverage : float = None
-    resolution    : int = None
-    exclude_moving_parts : bool = None
-    head_mode : bool = None
-    x_offset : float = None
-    y_offset : float = None
     goatee : float = None
     smile : float = None
+    age : float = None

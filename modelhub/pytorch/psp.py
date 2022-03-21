@@ -10,11 +10,14 @@ class PspEditor():
     def __init__(self) -> None:
         super().__init__()
         checkpoint_path = Path(__file__).parent / "psp_ffhq_encode.pt"
-
         encoder, decoder, latent_avg = editor.load_model(checkpoint_path)
 
         manipulator = editor.manipulate_model(decoder)
         manipulator.edits = {editor.idx_dict[v[0]]: {v[1]: 0} for k, v in editor.edits.items()}
+
+        age_path = Path(__file__).parent / "age.pt"
+        self.age_edit = torch.load(age_path)
+        
         self.model = {
             "encoder": encoder,
             "decoder": decoder,
@@ -23,6 +26,9 @@ class PspEditor():
         }
 
     def run(self, inp, edits):
+
+        # age is a different type of edit to the others
+        age_scale = edits.pop("age")
 
         manipulator = self.model["manipulator"]
         for k, v in editor.edits.items():
@@ -37,6 +43,7 @@ class PspEditor():
             self.model["decoder"],
             self.model["latent_avg"],
             inp,
+            edit=age_scale*self.age_edit.to("cuda"),
             output_pil=False,
             input_is_pil=False,
             )
