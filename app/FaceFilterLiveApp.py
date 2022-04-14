@@ -13,6 +13,7 @@ from .ui.QFaceAligner import QFaceAligner
 from .ui.QFaceDetector import QFaceDetector
 from .ui.QFaceMarker import QFaceMarker
 from .ui.QStreamOutput import QStreamOutput
+from .ui.QFaceModifier import QFaceModifier
 from .ui.widgets.QBCFaceAlignViewer import QBCFaceAlignViewer
 from .ui.widgets.QBCMergedFrameViewer import QBCMergedFrameViewer
 from .ui.widgets.QBCFrameViewer import QBCFrameViewer
@@ -34,19 +35,22 @@ class QLiveSwap(qtx.QXWidget):
         face_detector_bc_out  = backend.BackendConnection()
         face_marker_bc_out    = backend.BackendConnection()
         face_aligner_bc_out   = backend.BackendConnection()
+        face_modifier_bc_out = backend.BackendConnection()
 
         camera_source  = self.camera_source  = backend.CameraSource (weak_heap=backed_weak_heap, bc_out=multi_sources_bc_out, backend_db=backend_db)
         face_detector  = self.face_detector  = backend.FaceDetector (weak_heap=backed_weak_heap, reemit_frame_signal=reemit_frame_signal, bc_in=multi_sources_bc_out, bc_out=face_detector_bc_out, backend_db=backend_db )
         face_marker    = self.face_marker    = backend.FaceMarker   (weak_heap=backed_weak_heap, reemit_frame_signal=reemit_frame_signal, bc_in=face_detector_bc_out, bc_out=face_marker_bc_out, backend_db=backend_db)
         face_aligner   = self.face_aligner   = backend.FaceAligner  (weak_heap=backed_weak_heap, reemit_frame_signal=reemit_frame_signal, bc_in=face_marker_bc_out, bc_out=face_aligner_bc_out, backend_db=backend_db )
-        stream_output  = self.stream_output  = backend.StreamOutput (weak_heap=backed_weak_heap, reemit_frame_signal=reemit_frame_signal, bc_in=face_aligner_bc_out, save_default_path=userdata_path, backend_db=backend_db)
+        face_modifier  = self.face_modifier  = backend.FaceModifier  (weak_heap=backed_weak_heap, reemit_frame_signal=reemit_frame_signal, bc_in=face_aligner_bc_out, bc_out=face_modifier_bc_out, backend_db=backend_db )
+        stream_output  = self.stream_output  = backend.StreamOutput (weak_heap=backed_weak_heap, reemit_frame_signal=reemit_frame_signal, bc_in=face_modifier_bc_out, save_default_path=userdata_path, backend_db=backend_db)
 
-        self.all_backends : List[backend.BackendHost] = [camera_source, face_detector, face_marker, face_aligner, stream_output]
+        self.all_backends : List[backend.BackendHost] = [camera_source, face_detector, face_marker, face_aligner, face_modifier, stream_output]
 
         self.q_camera_source  = QCameraSource(self.camera_source)
         self.q_face_detector  = QFaceDetector(self.face_detector)
         self.q_face_marker    = QFaceMarker(self.face_marker)
         self.q_face_aligner   = QFaceAligner(self.face_aligner)
+        self.q_face_modifier   = QFaceModifier(self.face_modifier)
         self.q_stream_output  = QStreamOutput(self.stream_output)
 
         self.q_ds_frame_viewer = QBCFrameViewer(backed_weak_heap, multi_sources_bc_out)
@@ -54,7 +58,7 @@ class QLiveSwap(qtx.QXWidget):
 
         q_nodes = qtx.QXWidgetHBox([    qtx.QXWidgetVBox([self.q_camera_source], spacing=5, fixed_width=256),
                                         qtx.QXWidgetVBox([self.q_face_detector,  self.q_face_aligner,], spacing=5, fixed_width=256),
-                                        qtx.QXWidgetVBox([self.q_face_marker, self.q_stream_output], spacing=5, fixed_width=256),
+                                        qtx.QXWidgetVBox([self.q_face_marker, self.q_face_modifier, self.q_stream_output], spacing=5, fixed_width=256),
                                     ], spacing=5, size_policy=('fixed', 'fixed') )
 
         q_view_nodes = qtx.QXWidgetHBox([   (qtx.QXWidgetVBox([self.q_ds_frame_viewer], fixed_width=256), qtx.AlignTop),

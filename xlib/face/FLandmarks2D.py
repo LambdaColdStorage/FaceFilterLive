@@ -8,7 +8,33 @@ from ..math import Affine2DMat, Affine2DUniMat
 from .ELandmarks2D import ELandmarks2D
 from .FRect import FRect
 from .IState import IState
+from xlib.math.Affine2DMat import Affine2DMat
 
+    
+def ffhq_align(image_landmarks, output_size=1):
+    lm_eye_left = image_landmarks[36: 42]  # left-clockwise
+    lm_eye_right = image_landmarks[42: 48]  # left-clockwise
+    lm_mouth_outer = image_landmarks[48: 60]  # left-clockwise
+
+    eye_left = np.mean(lm_eye_left, axis=0)
+    eye_right = np.mean(lm_eye_right, axis=0)
+    eye_avg = (eye_left + eye_right) * 0.5
+    eye_to_eye = eye_right - eye_left
+    mouth_left = lm_mouth_outer[0]
+    mouth_right = lm_mouth_outer[6]
+    mouth_avg = (mouth_left + mouth_right) * 0.5
+    eye_to_mouth = mouth_avg - eye_avg
+
+    x = eye_to_eye - np.flipud(eye_to_mouth) * [-1, 1]
+    x /= np.hypot(*x)
+    x *= max(np.hypot(*eye_to_eye) * 2.0, np.hypot(*eye_to_mouth) * 1.8)
+    y = np.flipud(x) * [-1, 1]
+    c = eye_avg + eye_to_mouth * 0.1
+    quad = np.stack([c - x - y, c - x + y, c + x + y, c + x - y])
+    pts_quad = quad[:3].astype(np.float32)
+    pts_output = np.float32(( (0,0),(0,output_size),(output_size,output_size) ))
+    mat = cv2.getAffineTransform(pts_quad,pts_output)
+    return Affine2DMat(mat)
 class FLandmarks2D(IState):
     def __init__(self):
         """
@@ -106,7 +132,6 @@ class FLandmarks2D(IState):
         b = max(xlb[1], xrb[1])
         return FRect.from_ltrb( (l,t,r,b) )
         
-        
 
     def calc_cut(self, h_w, coverage : float, output_size : int,
                        exclude_moving_parts : bool = False,
@@ -131,7 +156,8 @@ class FLandmarks2D(IState):
             lmrks = lmrks.reshape( (68,2,2)).mean(1)
             
         if type == ELandmarks2D.L68:
-            mat = Affine2DMat.umeyama( np.concatenate ([ lmrks[17:36], lmrks[36:37], lmrks[39:40], lmrks[42:43], lmrks[45:46], lmrks[48:49], lmrks[54:55] ]), uni_landmarks_68)
+            # mat = Affine2DMat.umeyama( np.concatenate ([ lmrks[17:36], lmrks[36:37], lmrks[39:40], lmrks[42:43], lmrks[45:46], lmrks[48:49], lmrks[54:55] ]), uni_landmarks_68)
+            mat = ffhq_align(lmrks)
             
         elif type == ELandmarks2D.L468:
             src_lmrks = lmrks

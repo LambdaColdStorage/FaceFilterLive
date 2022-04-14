@@ -5,3 +5,4 @@ from .FaceAligner import FaceAligner
 from .FaceDetector import FaceDetector
 from .FaceMarker import FaceMarker
 from .StreamOutput import StreamOutput
+from .FaceModifier import FaceModifier
